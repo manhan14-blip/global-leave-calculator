@@ -60,17 +60,54 @@ function workingSet(){return new Set(dayBoxes.filter(x=>x.checked).map(x=>Number
 function setStatus(s){$('holidayStatus').textContent=s}
 async function loadHolidays(){
  const country=$('country').value, year=Number($('year').value);
- if(!Number.isInteger(year)||year<2000||year>2100){setStatus('Enter a year between 2000 and 2100.');return}
- setStatus('Loading public holidays…');$('holidayList').innerHTML='';holidayMap=new Map();
+ if(!Number.isInteger(year)||year<2000||year>2100){
+  setStatus('Enter a year between 2000 and 2100.');
+  return;
+ }
+
+ setStatus('Loading public holidays…');
+ $('holidayList').innerHTML='';
+ holidayMap=new Map();
+
  try{
-  const response=await fetch(`https://nagerholidays.com/api/v4/Holidays/${country}/${year}/`);
-  if(!response.ok)throw new Error(response.status===404?'No holiday calendar was found for this country and year.':'Holiday service is temporarily unavailable.');
-  const data=await response.json();
-  data.forEach(h=>{if(!holidayMap.has(h.date))holidayMap.set(h.date,[]);holidayMap.get(h.date).push(h.localName||h.name)});
+  const url=`https://nagerholidays.com/api/v4/Holidays/${country}/${year}`;
+  const response=await fetch(url);
+
+  if(!response.ok){
+   throw new Error(`Holiday service returned HTTP ${response.status}.`);
+  }
+
+  const body=await response.text();
+  if(!body.trim()){
+   throw new Error('The holiday service returned an empty response. Please try again later.');
+  }
+
+  let data;
+  try{
+   data=JSON.parse(body);
+  }catch{
+   throw new Error('The holiday service returned invalid JSON. Please try again later.');
+  }
+
+  if(!Array.isArray(data)){
+   throw new Error('The holiday service returned data in an unexpected format.');
+  }
+
+  data.forEach(h=>{
+   if(!h.date) return;
+   if(!holidayMap.has(h.date)) holidayMap.set(h.date,[]);
+   holidayMap.get(h.date).push(h.name||'Public holiday');
+  });
+
   const entries=[...holidayMap.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
-  $('holidayList').innerHTML=entries.map(([date,names])=>`<li><strong>${fmt(date)}</strong> — ${names.map(escapeHtml).join(', ')}</li>`).join('');
+  $('holidayList').innerHTML=entries
+   .map(([date,names])=>`<li><strong>${fmt(date)}</strong> — ${names.map(escapeHtml).join(', ')}</li>`)
+   .join('');
+
   setStatus(`${entries.length} public-holiday dates loaded for ${$('country').selectedOptions[0].text} (${year}).`);
- }catch(e){setStatus(e.message+' Check your internet connection or enter the dates from an official source.')}
+ }catch(e){
+  setStatus((e.message||'Could not load public holidays.')+' Check your internet connection or enter the dates from an official source.');
+ }
 }
 function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
 function calculate(){
