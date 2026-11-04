@@ -63,7 +63,7 @@ async function loadHolidays(){
  if(!Number.isInteger(year)||year<2000||year>2100){setStatus('Enter a year between 2000 and 2100.');return}
  setStatus('Loading public holidays…');$('holidayList').innerHTML='';holidayMap=new Map();
  try{
-  const response=await fetch(`https://nagerholidays.com/api/v4/Holidays/${year}/${country}`);
+  const response=await fetch(`https://nagerholidays.com/api/v4/Holidays/${country}/${year}/`);
   if(!response.ok)throw new Error(response.status===404?'No holiday calendar was found for this country and year.':'Holiday service is temporarily unavailable.');
   const data=await response.json();
   data.forEach(h=>{if(!holidayMap.has(h.date))holidayMap.set(h.date,[]);holidayMap.get(h.date).push(h.localName||h.name)});
