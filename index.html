@@ -1,0 +1,99 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Global Leave Calculator</title>
+<style>
+:root{font-family:Inter,system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;color:#172033;background:#f4f7fb}
+*{box-sizing:border-box}body{margin:0;padding:24px}.wrap{max-width:980px;margin:auto}.hero{background:#14243b;color:white;padding:26px;border-radius:18px;margin-bottom:18px}.hero h1{margin:0 0 8px;font-size:28px}.hero p{margin:0;color:#d5deeb}.panel{background:white;border:1px solid #e2e8f0;border-radius:16px;padding:20px;margin:16px 0}.grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}.field label,.label{display:block;font-weight:650;font-size:14px;margin-bottom:7px}input,select,button{font:inherit}input[type=date],select,input[type=number]{width:100%;padding:11px 12px;border:1px solid #cbd5e1;border-radius:10px;background:white;color:#172033;min-height:44px}.days{display:grid;grid-template-columns:repeat(7,minmax(0,1fr));gap:8px}.day{border:1px solid #d7dfeb;border-radius:11px;padding:10px 4px;text-align:center;cursor:pointer;font-size:13px}.day input{accent-color:#2563eb}.day:has(input:checked){background:#eaf2ff;border-color:#2563eb;color:#174ea6}.muted{color:#64748b;font-size:13px}.btn{border:0;border-radius:10px;background:#2563eb;color:white;padding:12px 18px;font-weight:700;cursor:pointer;min-height:44px}.btn.secondary{background:#e8eef7;color:#1e293b}.actions{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px}.results{display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:10px}.metric{background:#f1f5f9;border-radius:12px;padding:14px}.metric strong{display:block;font-size:24px;margin-top:5px}.metric span{font-size:12px;color:#64748b}.highlight{background:#eaf7ef;border:1px solid #b8e1c6;padding:14px;border-radius:12px;margin-top:14px}.holiday-list{max-height:190px;overflow:auto;padding-left:20px}.error{color:#b42318;font-size:13px;margin-top:10px}.status{font-size:13px;color:#475569;margin-top:8px}.foot{font-size:12px;color:#64748b;line-height:1.5}@media(max-width:650px){body{padding:12px}.grid{grid-template-columns:1fr}.days{grid-template-columns:repeat(4,minmax(0,1fr))}.results{grid-template-columns:repeat(2,minmax(0,1fr))}.hero h1{font-size:23px}}
+</style>
+</head>
+<body>
+<main class="wrap">
+<section class="hero"><h1>Global Leave Calculator</h1><p>Plan time off using your workweek and your country’s public-holiday calendar.</p></section>
+<section class="panel">
+<h2>1. Work location and schedule</h2>
+<div class="grid">
+<div class="field"><label for="country">Country of employment</label><select id="country"><option value="AE">United Arab Emirates</option><option value="SG">Singapore</option><option value="SA">Saudi Arabia</option><option value="GB">United Kingdom</option><option value="US">United States</option><option value="IN">India</option><option value="AU">Australia</option><option value="CA">Canada</option><option value="NZ">New Zealand</option><option value="ZA">South Africa</option></select></div>
+<div class="field"><label for="year">Holiday calendar year</label><input id="year" type="number" min="2000" max="2100"></div>
+</div>
+<p class="label" style="margin-top:18px">Select your normal working days</p>
+<div class="days" id="days">
+<label class="day"><input type="checkbox" value="1" checked> Mon</label><label class="day"><input type="checkbox" value="2" checked> Tue</label><label class="day"><input type="checkbox" value="3" checked> Wed</label><label class="day"><input type="checkbox" value="4" checked> Thu</label><label class="day"><input type="checkbox" value="5" checked> Fri</label><label class="day"><input type="checkbox" value="6"> Sat</label><label class="day"><input type="checkbox" value="0"> Sun</label>
+</div>
+<div class="actions"><button class="btn" id="load">Load public holidays</button></div>
+<div class="status" id="holidayStatus" aria-live="polite">Choose a country and year, then load its public holidays.</div>
+<ul class="holiday-list" id="holidayList"></ul>
+<p class="foot">Holiday data is retrieved from the Nager.Date public-holiday API. National calendars may not include every state, province, emirate, company-specific or religious observance. Confirm local applicability with your employer.</p>
+</section>
+<section class="panel">
+<h2>2. Leave dates</h2>
+<div class="grid">
+<div class="field"><label for="start">First day of leave</label><input id="start" type="date"></div>
+<div class="field"><label for="end">Last day of leave</label><input id="end" type="date"></div>
+</div>
+<div class="actions"><button class="btn" id="calculate">Calculate leave</button><button class="btn secondary" id="reset">Reset</button></div>
+<div id="error" class="error" role="alert"></div>
+</section>
+<section class="panel" aria-live="polite">
+<h2>3. Your leave summary</h2>
+<div class="results">
+<div class="metric"><span>Calendar days</span><strong id="calendar">—</strong></div>
+<div class="metric"><span>Scheduled workdays</span><strong id="workdays">—</strong></div>
+<div class="metric"><span>Public holidays on workdays</span><strong id="holidays">—</strong></div>
+<div class="metric"><span>Leave days deducted</span><strong id="deducted">—</strong></div>
+</div>
+<div class="highlight" id="summary">Enter a date range and calculate to see your leave deduction.</div>
+<p class="foot" id="detail"></p>
+</section>
+</main>
+<script>
+(function(){
+const $=id=>document.getElementById(id), dayBoxes=[...document.querySelectorAll('#days input')];
+const today=new Date();$('year').value=today.getFullYear();
+let holidayMap=new Map();
+const dateKey=d=>[d.getUTCFullYear(),String(d.getUTCMonth()+1).padStart(2,'0'),String(d.getUTCDate()).padStart(2,'0')].join('-');
+function dateFrom(s){const [y,m,d]=s.split('-').map(Number);return new Date(Date.UTC(y,m-1,d))}
+function fmt(s){return new Intl.DateTimeFormat(undefined,{day:'numeric',month:'short',year:'numeric',timeZone:'UTC'}).format(dateFrom(s))}
+function workingSet(){return new Set(dayBoxes.filter(x=>x.checked).map(x=>Number(x.value)))}
+function setStatus(s){$('holidayStatus').textContent=s}
+async function loadHolidays(){
+ const country=$('country').value, year=Number($('year').value);
+ if(!Number.isInteger(year)||year<2000||year>2100){setStatus('Enter a year between 2000 and 2100.');return}
+ setStatus('Loading public holidays…');$('holidayList').innerHTML='';holidayMap=new Map();
+ try{
+  const response=await fetch(`https://date.nager.at/api/v3/PublicHolidays/${year}/${country}`);
+  if(!response.ok)throw new Error(response.status===404?'No holiday calendar was found for this country and year.':'Holiday service is temporarily unavailable.');
+  const data=await response.json();
+  data.forEach(h=>{if(!holidayMap.has(h.date))holidayMap.set(h.date,[]);holidayMap.get(h.date).push(h.localName||h.name)});
+  const entries=[...holidayMap.entries()].sort((a,b)=>a[0].localeCompare(b[0]));
+  $('holidayList').innerHTML=entries.map(([date,names])=>`<li><strong>${fmt(date)}</strong> — ${names.map(escapeHtml).join(', ')}</li>`).join('');
+  setStatus(`${entries.length} public-holiday dates loaded for ${$('country').selectedOptions[0].text} (${year}).`);
+ }catch(e){setStatus(e.message+' Check your internet connection or enter the dates from an official source.')}
+}
+function escapeHtml(s){return String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]))}
+function calculate(){
+ $('error').textContent='';
+ const a=$('start').value,b=$('end').value;
+ if(!a||!b){$('error').textContent='Please enter both the first and last day of leave.';return}
+ if(b<a){$('error').textContent='The end date must be on or after the start date.';return}
+ const work=workingSet();if(!work.size){$('error').textContent='Select at least one working day.';return}
+ const start=dateFrom(a),end=dateFrom(b);let calendar=0,scheduled=0,holidayWork=0,deducted=0,weekend=0,holidayNames=[];
+ for(let t=start.getTime();t<=end.getTime();t+=86400000){
+  const d=new Date(t),key=dateKey(d),isWork=work.has(d.getUTCDay()),isHoliday=holidayMap.has(key);
+  calendar++;
+  if(isWork){scheduled++;if(isHoliday){holidayWork++;holidayNames.push(`${fmt(key)}: ${holidayMap.get(key).join(', ')}`)}else deducted++}
+  else weekend++;
+ }
+ $('calendar').textContent=calendar;$('workdays').textContent=scheduled;$('holidays').textContent=holidayWork;$('deducted').textContent=deducted;
+ $('summary').innerHTML=`You will use <strong>${deducted} leave day${deducted===1?'':'s'}</strong> for ${calendar} consecutive calendar days off, from ${fmt(a)} to ${fmt(b)}.`;
+ $('detail').textContent=`${weekend} date(s) fall on your selected non-working days. ${holidayWork} public holiday date(s) fall on scheduled working days and are excluded from the deduction.`+(holidayNames.length?' Holidays counted: '+holidayNames.join('; '):'');
+}
+function reset(){ $('start').value='';$('end').value='';$('error').textContent='';['calendar','workdays','holidays','deducted'].forEach(id=>$(id).textContent='—');$('summary').textContent='Enter a date range and calculate to see your leave deduction.';$('detail').textContent=''}
+$('load').addEventListener('click',loadHolidays);$('calculate').addEventListener('click',calculate);$('reset').addEventListener('click',reset);
+$('country').addEventListener('change',()=>{holidayMap=new Map();$('holidayList').innerHTML='';setStatus('Country changed. Load its public holidays.');});
+})();
+</script>
+</body>
+</html>
